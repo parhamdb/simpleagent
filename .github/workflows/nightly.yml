@@ -44,31 +44,29 @@ jobs:
             if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
             BINARY="simpleagent-${GOOS}-${GOARCH}${EXT}"
             echo "Building ${BINARY}..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X main.version=${VERSION}" -o "dist/${BINARY}" .
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-s -w -X main.version=${VERSION}" -o "dist/${BINARY}" .
           done
 
       - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum * > checksums.txt
+        run: cd dist && sha256sum * > checksums.txt
 
       - name: Update nightly release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Delete existing nightly release if present
-          gh release delete nightly --yes 2>/dev/null || true
-          git push origin :refs/tags/nightly 2>/dev/null || true
+          gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
 
           # Create new nightly pre-release
           gh release create nightly \
             --prerelease \
+            --target develop \
             --title "Nightly (${VERSION})" \
             --notes "Automated nightly build from \`develop\` branch.
 
           **Version**: \`${VERSION}\`
-          **Commit**: \`${GITHUB_SHA:0:8}\`
+          **Commit**: [\`${GITHUB_SHA::8}\`](https://github.com/${{ github.repository }}/commit/${GITHUB_SHA})
           **Date**: $(date -u +%Y-%m-%d\ %H:%M\ UTC)
 
-          > This is a pre-release build. For stable releases, see the latest non-prerelease version." \
+          > Pre-release build — not recommended for production. For stable releases, use the latest tagged version." \
             dist/*
