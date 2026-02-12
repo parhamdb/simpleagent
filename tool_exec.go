@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -297,7 +296,7 @@ func toolStartProcess(args json.RawMessage) (string, error) {
 	}
 
 	cmd := exec.Command("sh", "-c", params.Command)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcGroup(cmd)
 
 	if params.Workdir != "" {
 		cmd.Dir = params.Workdir
@@ -465,13 +464,8 @@ func toolKillProcess(args json.RawMessage) (string, error) {
 		return fmt.Sprintf("process %s already exited", params.ID), nil
 	}
 
-	// Send SIGTERM to process group
-	pgid, err := syscall.Getpgid(mp.Cmd.Process.Pid)
-	if err == nil {
-		syscall.Kill(-pgid, syscall.SIGTERM)
-	} else {
-		mp.Cmd.Process.Signal(syscall.SIGTERM)
-	}
+	// Send SIGTERM (or Kill on Windows) to process group
+	terminateProcess(mp.Cmd)
 
 	// Wait up to 3 seconds for graceful exit
 	done = false
@@ -486,12 +480,8 @@ func toolKillProcess(args json.RawMessage) (string, error) {
 	}
 
 	if !done {
-		if pgid, err := syscall.Getpgid(mp.Cmd.Process.Pid); err == nil {
-			syscall.Kill(-pgid, syscall.SIGKILL)
-		} else {
-			mp.Cmd.Process.Kill()
-		}
-		return fmt.Sprintf("killed process %s (SIGKILL)", params.ID), nil
+		forceKillProcess(mp.Cmd)
+		return fmt.Sprintf("killed process %s (forced)", params.ID), nil
 	}
 
 	return fmt.Sprintf("terminated process %s", params.ID), nil
