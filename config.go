@@ -214,6 +214,33 @@ func migrateOldConfig(data []byte, cfg *Config) {
 	}
 }
 
+// UserConfigPath returns the path to the user-wide config file.
+func UserConfigPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".simpleagent", "config.json")
+}
+
+// SaveConfig writes a config to the given path, creating directories as needed.
+func SaveConfig(path string, cfg Config) error {
+	os.MkdirAll(filepath.Dir(path), 0755)
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// providerReady returns true if the active provider has enough config to initialize.
+func providerReady(cfg Config) bool {
+	pc := cfg.ProviderCfg(cfg.Provider)
+	switch cfg.Provider {
+	case "ollama", "bedrock":
+		return true // ollama needs no key, bedrock uses AWS SDK
+	default:
+		return pc.APIKey != ""
+	}
+}
+
 func applyEnvOverrides(cfg *Config) {
 	envMap := map[string]struct{ provider, field string }{
 		"ANTHROPIC_API_KEY":  {"anthropic", "api_key"},

@@ -66,6 +66,7 @@ Priority: CLI flags > agent file > project config > user config > defaults.
 | `--sessions` | — | List all sessions |
 | `--new` | — | Create new .agent file |
 | `--edit` | — | Edit existing .agent file |
+| `--setup` | — | Run setup wizard |
 | `--version` | — | Print version |
 
 Providers: anthropic, openai, openrouter, gemini, ollama, bedrock
@@ -85,6 +86,7 @@ agentfile.go         .agent file parser, builder/editor prompts
 types.go             Mode, Message, ToolCall, StreamChunk, Usage
 config.go            JSON config, layered loading, agentDir resolution
 session.go           Session persistence, index, picker
+setup.go             First-run setup wizard (--setup or auto-trigger)
 memory.go            AGENT.md load/append
 provider.go          Provider interface + factory
 provider_anthropic.go
@@ -103,7 +105,7 @@ render.go            Markdown rendering + context line
 input.go             Raw terminal input, Shift+Tab detection
 ```
 
-22 files. 21 tools (10 fs + 6 exec + 2 search + 2 diff + 1 user).
+23 files. 21 tools (10 fs + 6 exec + 2 search + 2 diff + 1 user).
 
 ## Runtime Directories
 
@@ -157,6 +159,7 @@ Provider-scoped config — each provider has `api_key`, `model`, `url`:
 
 Old flat config.json (with `anthropic_api_key`, `model` map, etc.) auto-migrates silently.
 Tool policy in `.agent` file overrides config.json when present.
+Setup wizard (`--setup` or auto-triggered when no provider configured) saves to `~/.simpleagent/config.json`.
 
 Env overrides: `ANTHROPIC_API_KEY` `OPENAI_API_KEY` `OPENROUTER_API_KEY` `GEMINI_API_KEY` `OLLAMA_HOST` `SIMPLEAGENT_MAX_TOKENS`
 
