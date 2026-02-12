@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - 'VERSION'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Bump version
+        id: version
+        run: |
+          today=$(date +%y%m%d)
+          current=$(cat VERSION 2>/dev/null || echo "")
+          prefix=${current:0:6}
+          if [ "$prefix" = "$today" ]; then
+            counter=${current:6:2}
+            next=$(printf "%02d" $((10#$counter + 1)))
+          else
+            next="01"
+          fi
+          version="${today}${next}"
+          echo "$version" > VERSION
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Bumped to: $version"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          DATE=$(date +%Y-%m-%d)
+
+          # Get previous tag (skip nightly)
+          PREV_TAG=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1 || echo "")
+
+          # Generate notes from commits since last release tag
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          else
+            NOTES=$(git log --pretty=format:"- %s" --no-merges -20)
+          fi
+
+          # Build changelog entry
+          ENTRY="## ${TAG} (${DATE})"$'\n'"${NOTES}"
+
+          # Prepend to CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            {
+              head -1 CHANGELOG.md
+              echo ""
+              echo "$ENTRY"
+              echo ""
+              tail -n +2 CHANGELOG.md
+            } > CHANGELOG.tmp
+            mv CHANGELOG.tmp CHANGELOG.md
+          else
+            {
+              echo "# Changelog"
+              echo ""
+              echo "$ENTRY"
+            } > CHANGELOG.md
+          fi
+
+          # Save notes for release body
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build all platforms
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          mkdir -p dist
+
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+
+          for pair in "${platforms[@]}"; do
+            GOOS=${pair%/*}
+            GOARCH=${pair#*/}
+            EXT=""
+            if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+            BINARY="simpleagent-${GOOS}-${GOARCH}${EXT}"
+            echo "Building ${BINARY}..."
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X main.version=${VERSION}" -o "dist/${BINARY}" .
+          done
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Commit version and changelog
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md
+          git commit -m "${TAG} [skip ci]"
+          git tag "$TAG"
+          git push
+          git push --tags
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          VERSION=${{ steps.version.outputs.version }}
+          NOTES="${{ steps.changelog.outputs.notes }}"
+
+          gh release create "$TAG" \
+            --title "simpleagent ${TAG}" \
+            --notes "${NOTES}
+
+          ---
+          **Checksums**: see \`checksums.txt\` in assets
+          **Install**: download the binary for your platform, \`chmod +x\`, and move to PATH" \
+            dist/*

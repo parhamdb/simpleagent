@@ -1,0 +1,4 @@
+simpleagent
+*.exe
+dist/
+.simpleagent/
