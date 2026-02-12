@@ -97,11 +97,13 @@ tool_exec.go         bash start_process write_stdin read_output kill_process lis
 tool_search.go       grep find_files
 tool_diff.go         diff patch
 tool_user.go         ask_user
+proc_unix.go         Process group mgmt (Unix build tag)
+proc_windows.go      Process mgmt stubs (Windows build tag)
 render.go            Markdown rendering + context line
 input.go             Raw terminal input, Shift+Tab detection
 ```
 
-20 files. 21 tools (10 fs + 6 exec + 2 search + 2 diff + 1 user).
+22 files. 21 tools (10 fs + 6 exec + 2 search + 2 diff + 1 user).
 
 ## Runtime Directories
 
