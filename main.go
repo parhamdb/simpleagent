@@ -20,6 +20,7 @@ func main() {
 		resumeFlag   bool
 		newFlag      bool
 		editFlag     bool
+		setupFlag    bool
 	)
 
 	flag.StringVar(&providerFlag, "provider", "", "LLM provider (anthropic, openai, openrouter, gemini, ollama, bedrock)")
@@ -31,6 +32,7 @@ func main() {
 	flag.BoolVar(&resumeFlag, "resume", false, "Resume last session")
 	flag.BoolVar(&newFlag, "new", false, "Create a new .agent file")
 	flag.BoolVar(&editFlag, "edit", false, "Edit an existing .agent file")
+	flag.BoolVar(&setupFlag, "setup", false, "Run setup wizard")
 	flag.Parse()
 
 	if showVersion {
@@ -135,6 +137,44 @@ func main() {
 	if showSessions {
 		listAllSessions()
 		os.Exit(0)
+	}
+
+	// Explicit setup
+	if setupFlag {
+		if !runSetupWizard(&cfg) {
+			os.Exit(1)
+		}
+		// Reload config to get the saved values merged with defaults
+		cfg = LoadConfig()
+		cfg.ApplyAgentFile(agentFile)
+		if providerFlag != "" {
+			cfg.Provider = providerFlag
+		}
+		if modelFlag != "" {
+			pc := cfg.Providers[cfg.Provider]
+			pc.Model = modelFlag
+			cfg.Providers[cfg.Provider] = pc
+		}
+	}
+
+	// Auto-detect: no usable provider configured
+	if !providerReady(cfg) {
+		fmt.Println("No provider configured. Let's set one up.")
+		fmt.Println()
+		if !runSetupWizard(&cfg) {
+			os.Exit(1)
+		}
+		// Reload config to get the saved values merged with defaults
+		cfg = LoadConfig()
+		cfg.ApplyAgentFile(agentFile)
+		if providerFlag != "" {
+			cfg.Provider = providerFlag
+		}
+		if modelFlag != "" {
+			pc := cfg.Providers[cfg.Provider]
+			pc.Model = modelFlag
+			cfg.Providers[cfg.Provider] = pc
+		}
 	}
 
 	// Create LLM provider
