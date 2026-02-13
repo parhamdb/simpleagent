@@ -209,10 +209,9 @@ func main() {
 	if newFlag || editFlag {
 		agent.mode = ModeAction
 		if inlinePrompt != "" {
-			agent.RunOnce(inlinePrompt)
-		} else {
-			agent.RunLoop()
+			agent.session.Messages = append(agent.session.Messages, Message{Role: "user", Content: inlinePrompt})
 		}
+		agent.RunLoop()
 		return
 	}
 

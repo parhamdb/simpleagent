@@ -120,7 +120,7 @@ func (a *Agent) RunLoop() {
 		// Check if last message needs LLM response (pending tool results)
 		if len(a.session.Messages) > 0 {
 			last := a.session.Messages[len(a.session.Messages)-1]
-			if last.Role == "tool" {
+			if last.Role == "tool" || last.Role == "user" {
 				a.runAgentLoop()
 				continue
 			}
