@@ -118,7 +118,7 @@ func (af *AgentFile) ToolsConfig() ToolsConfig {
 
 // BuilderPrompt returns a system prompt for creating new .agent files.
 func BuilderPrompt(target string) (agentFile *AgentFile, firstMsg string) {
-	prompt := `You help create .agent files. The format:
+	prompt := `You help create .agent files through conversation. The format:
 
 ` + "```" + `
 #!/usr/bin/env simpleagent
@@ -139,7 +139,15 @@ All header fields are optional. The body is what makes the agent — clear instr
 
 Available tools agents can use: read_file, write_file, edit_file, list_dir, delete, move, copy, file_info, make_dir, chmod, bash, start_process, write_stdin, read_output, kill_process, list_processes, grep, find_files, diff, patch, ask_user.
 
-Ask the user what this agent should do, then generate the complete .agent file and write it with write_file. Keep the prompt clear, actionable, and focused.`
+WORKFLOW:
+1. Ask what this agent should do. If the user already provided a description, ask follow-up questions to flesh it out.
+2. Ask about specific skills, tools it needs, and any restrictions (deny/allow).
+3. Ask ONE question at a time. Keep it conversational.
+4. Do NOT generate the file until the user indicates they're ready (e.g. "done", "that's it", "looks good", "go ahead", "create it").
+5. When ready, write the file with write_file. Then ask if they want any changes.
+6. If they request changes, apply them with edit_file and ask again.
+
+Be concise in your questions. Don't overwhelm with options — ask naturally.`
 
 	af := &AgentFile{Prompt: prompt}
 
@@ -156,14 +164,22 @@ func EditorPrompt(target string) (agentFile *AgentFile, firstMsg string) {
 		return nil, ""
 	}
 
-	prompt := "You are editing the agent file at " + target + `. Help the user modify it. Use edit_file for small changes, write_file for full rewrites. Preserve the shebang and frontmatter format.
+	prompt := `You are editing the agent file at ` + target + `. Help the user modify it through conversation.
 
 Current contents:
 ` + "```" + `
 ` + string(content) + `
-` + "```"
+` + "```" + `
+
+WORKFLOW:
+1. Briefly summarize what this agent currently does, then ask what the user wants to change.
+2. After each change, apply it with edit_file (or write_file for full rewrites). Preserve the shebang and frontmatter format.
+3. After applying a change, ask if there's anything else to modify.
+4. Keep going until the user says they're done.
+
+Be concise. One question at a time.`
 
 	af := &AgentFile{Prompt: prompt}
-	firstMsg = "What would you like to change?"
+	firstMsg = "Review this agent file and ask what I'd like to change."
 	return af, firstMsg
 }
